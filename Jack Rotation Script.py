@@ -4,53 +4,118 @@ import matplotlib.pyplot as plt
 import tkinter as tk
 import PIL
 from PIL import Image, ImageTk
-
-def load_nifti(file_path):
-    img = nib.load(file_path)
-    data = img.get_fdata()
-    return data
-
-def rotate_nifti(data, angle, axes):
-    rotated_data = np.rot90(data, k=angle, axes = axes)
-    return rotated_data
-
-def rot_left(data):
-    if plane == "axial":
-        data = np.rot90(data,1,(0,1))
-    if plane == "coronal":
-        data = np.rot90(data,1,(0,2))
-    if plane == "sagittal":
-        data = np.rot90(data,1,(1,2))
-
-def rot_right(data):
-    if plane == "axial":
-        data = np.rot90(data,-1,(0,1))
-    if plane == "coronal":
-        data = np.rot90(data,-1,(0,2))
-    if plane == "sagittal":
-        data = np.rot90(data,-1,(1,2))
+from tkinter.filedialog import asksaveasfile, askopenfilename
 
 #Create tkinter window
 root=tk.Tk()
 root.geometry('800x600')
-root.title("NiFTI Rotation Tool")
+root.title("NIfTI Rotation Tool")
 
-#Load data
-data = load_nifti(r"C:\Users\mall88\Documents\Temp folder\BA001.1.nii")
+#Create file types
+files = [('All Files','*.*'),
+        ('NIfTI files','*.nii')]
 
-#Normalize
-max_pix = np.max(data)
-min_pix = np.min(data)
-data = (data-min_pix) * 255 // (max_pix-min_pix)
+#Initialize variables
+orig_data= ""
+data = ""
+ax_slices = 0
+cor_slices = 0
+sag_slices = 0
+file_loaded = False
 
-#Collect size information
-ax_slices = data.shape[2]
-cor_slices = data.shape[1]
-sag_slices = data.shape[0]
+#Open file
+def open_file():
+    global orig_data, data, ax_slices, cor_slices, sag_slices, file_loaded
+    
+    #Pause redrawing
+    file_loaded = False
+
+    #Open file
+    filename = askopenfilename(initialdir = "/", title = "Select File to Open", filetypes = files)
+    img = nib.load(filename)
+    orig_data = img.get_fdata()
+
+
+    #Normalize
+    max_pix = np.max(orig_data)
+    min_pix = np.min(orig_data)
+    data = (orig_data-min_pix) * 255 // (max_pix-min_pix)
+    
+    #Collect size information
+    ax_slices = data.shape[2]
+    cor_slices = data.shape[1]
+    sag_slices = data.shape[0]
+
+    #Signal file loaded
+    file_loaded = True
+
+    #Reconfig sliders
+    ax_slicer.config(from_=0, to=ax_slices-1)
+    cor_slicer.config(from_=0, to=cor_slices-1)
+    sag_slicer.config(from_=0, to=sag_slices-1)
+
+    root.update()
+    root.update_idletasks()
+
+#Track rotation state
+rot_state = []
+
+#Create save function
+def save_as():
+    file = asksaveasfile(filetypes = files, defaultextension = files)
+
+#Define rotate commands
+def rot_left():
+    global data, rot_state
+    if plane.get() == "axial":
+        data = np.rot90(data,1,(0,1))
+        rot_state = rot_state + [1]
+    if plane.get() == "coronal":
+        data = np.rot90(data,1,(0,2))
+        rot_state = rot_state + [2]
+    if plane.get() == "sagittal":
+        data = np.rot90(data,1,(1,2))
+        rot_state = rot_state + [3]
+
+    #Collect size information
+    ax_slices = data.shape[2]
+    cor_slices = data.shape[1]
+    sag_slices = data.shape[0]
+
+    #Reconfig sliders
+    ax_slicer.config(from_=0, to=ax_slices-1)
+    cor_slicer.config(from_=0, to=cor_slices-1)
+    sag_slicer.config(from_=0, to=sag_slices-1)
+
+def rot_right():
+    global data, rot_state
+    if plane.get() == "axial":
+        data = np.rot90(data,-1,(0,1))
+        rot_state = rot_state + [-1]
+    if plane.get() == "coronal":
+        data = np.rot90(data,-1,(0,2))
+        rot_state = rot_state + [-2]
+    if plane.get() == "sagittal":
+        data = np.rot90(data,-1,(1,2))
+        rot_state = rot_state + [-3]
+
+    #Collect size information
+    ax_slices = data.shape[2]
+    cor_slices = data.shape[1]
+    sag_slices = data.shape[0]
+    
+    #Reconfig sliders
+    ax_slicer.config(from_=0, to=ax_slices-1)
+    cor_slicer.config(from_=0, to=cor_slices-1)
+    sag_slicer.config(from_=0, to=sag_slices-1)
 
 #Create control panel
 sidepanel = tk.Frame(root)
 sidepanel.pack(side="left", fill="y")
+
+#Open file button
+openbutton = tk.Button(sidepanel,text = "Open File", command = open_file)
+openbutton.pack(pady=5)
 
 #Create plane label
 planelabel = tk.Label(sidepanel,text = "Selected Plane")
@@ -100,54 +165,62 @@ lbl2.pack()
 frame1 = tk.Frame(sidepanel)
 frame1.pack(pady=10)
 
-left = tk.Button(frame1, text = "Left", command = rot_left(data))
+left = tk.Button(frame1, text = "Left", command = rot_left)
 left.pack(side="left",padx=10)
 
-right = tk.Button(frame1, text = "Right", command = rot_right(data))
+right = tk.Button(frame1, text = "Right", command = rot_right)
 right.pack(side="left",padx=10)
 
 #Create canvas
 C = tk.Canvas(root,bg = "black")
 C.pack(padx = 5, pady = 5, fill= tk.BOTH, expand=True)
 
+#Create save button
+savebutton = tk.Button(sidepanel,text = "Save As", command = save_as)
+savebutton.pack(pady=5)
+
+
 def showslice():
-    #Clear Canvas
-    C.delete("all")
-    
-    #Get canvas size
-    w = C.winfo_width()
-    h = C.winfo_height()
+    if file_loaded == True:
+        #Clear Canvas
+        C.delete("all")
+        
+        #Get canvas size
+        w = C.winfo_width()
+        h = C.winfo_height()
 
-    #Redraw backgroud
-    C.create_rectangle(0,0,w,h,fill = "black")
+        #Redraw backgroud
+        C.create_rectangle(0,0,w,h,fill = "black")
 
-    #Check which plane currently selected and gather slice data
-    if plane.get() == "axial":
-        cur_slice_mtx = data[:,:,ax_slice.get()]
-    if plane.get() == "coronal":
-        cur_slice_mtx = data[:,cor_slice.get(),:] 
-    if plane.get() == "sagittal":
-        cur_slice_mtx = data[sag_slice.get(),:,:]
-    
-    img = Image.fromarray(cur_slice_mtx)
-    photo = ImageTk.PhotoImage(img)
-    C.create_image(w/2, h/2, anchor = 'center', image = photo)
-    C.image = photo
-
-    #Display Crosshair
-    if crosshair.get() == True:
+        #Check which plane currently selected and gather slice data
         if plane.get() == "axial":
-            C.create_line(0,sag_slice.get()+(h-sag_slices)/2,w,sag_slice.get()+(h-sag_slices)/2, fill = "yellow")
-            C.create_line(cor_slice.get()+(w-cor_slices)/2,0,cor_slice.get()+(w-cor_slices)/2,h, fill = "yellow")
+            cur_slice_mtx = data[:,:,ax_slice.get()]
         if plane.get() == "coronal":
-            C.create_line(0,sag_slice.get()+(h-sag_slices)/2,w,sag_slice.get()+(h-sag_slices)/2, fill = "yellow")
-            C.create_line(ax_slice.get()+(w-ax_slices)/2,0,ax_slice.get()+(w-ax_slices)/2,h, fill = "yellow")
+            cur_slice_mtx = data[:,cor_slice.get(),:]
         if plane.get() == "sagittal":
-            C.create_line(0,cor_slice.get()+(h-cor_slices)/2,w,cor_slice.get()+(h-cor_slices)/2, fill = "yellow")
-            C.create_line(ax_slice.get()+(w-ax_slices)/2,0,ax_slice.get()+(w-ax_slices)/2,h, fill = "yellow")
-    
+            cur_slice_mtx = data[sag_slice.get(),:,:]
+        
+        img = Image.fromarray(cur_slice_mtx)
+        photo = ImageTk.PhotoImage(img)
+        C.create_image(w/2, h/2, anchor = 'center', image = photo)
+        C.image = photo
+
+        #Display Crosshair
+        if crosshair.get() == True:
+            if plane.get() == "axial":
+                C.create_line(0,sag_slice.get()+(h-sag_slices)/2,w,sag_slice.get()+(h-sag_slices)/2, fill = "yellow")
+                C.create_line(cor_slice.get()+(w-cor_slices)/2,0,cor_slice.get()+(w-cor_slices)/2,h, fill = "yellow")
+            if plane.get() == "coronal":
+                C.create_line(0,sag_slice.get()+(h-sag_slices)/2,w,sag_slice.get()+(h-sag_slices)/2, fill = "yellow")
+                C.create_line(ax_slice.get()+(w-ax_slices)/2,0,ax_slice.get()+(w-ax_slices)/2,h, fill = "yellow")
+            if plane.get() == "sagittal":
+                C.create_line(0,cor_slice.get()+(h-cor_slices)/2,w,cor_slice.get()+(h-cor_slices)/2, fill = "yellow")
+                C.create_line(ax_slice.get()+(w-ax_slices)/2,0,ax_slice.get()+(w-ax_slices)/2,h, fill = "yellow")
+
     #Refresh Display
     root.after(16,showslice)
+    root.update()
+    root.update_idletasks()
 
 
 #Display image
